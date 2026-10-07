@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>깃헙 아카이브 생성</title>
+  <meta name="category" content="backend/database">
+</head>
+<body>
+  <article class="prompt">
+    <h1>깃헙 아카이브 생성</h1>
+    <section class="prompt-content">
+중요:
+아직 코드를 작성하지 말고 먼저 다음을 수행한다.
+
+1. 요구사항을 기능 단위로 분해한다.
+2. 정적 호스팅에서 발생할 수 있는 제약사항을 정리한다.
+3. GitHub 폴더 구조를 웹 메뉴로 변환하는 방법을 2~3가지 비교한다.
+4. HTML 원본/수정본 diff를 구현하는 방법을 비교한다.
+5. 수정된 HTML을 다운로드할 때 원본 HTML 구조를 어떻게 보존할지 설계한다.
+6. GitHub Pages + GitHub Actions의 배포 구조를 설계한다.
+7. 최종 프로젝트 디렉터리 구조를 제안한다.
+8. 구현 단계별 작업 목록을 만든다.
+
+이 설계 결과를 먼저 보여주고, 내가 확인한 후 실제 코드 구현을 시작한다.
+
+# 프로젝트명
+
+GitHub Prompt Archive
+
+# 프로젝트 목적
+
+GitHub 저장소에 HTML 파일 형태로 저장해 둔 AI 프롬프트를 웹 브라우저에서 쉽게 탐색하고 복사하고 수정하고 다운로드할 수 있는 정적 웹 애플리케이션을 만든다.
+
+이 프로젝트는 GitHub Pages와 같은 정적 호스팅 환경에서 동작해야 한다.
+
+사용자가 GitHub 저장소에 HTML 파일과 폴더를 추가하면 별도의 서버 작업 없이 웹 페이지에서 자동으로 해당 파일과 폴더 구조를 인식하여 프롬프트 목록에 표시하는 것을 목표로 한다.
+
+주요 용도는 AI 프롬프트의 개인 백업 및 재사용이다.
+
+---
+
+# 핵심 요구사항
+
+## 1. 정적 웹사이트
+
+다음 조건을 만족해야 한다.
+
+- 별도의 백엔드 서버를 사용하지 않는다.
+- GitHub Pages에서 실행할 수 있어야 한다.
+- 빌드 후 생성되는 정적 파일만으로 동작해야 한다.
+- 가능하면 순수 HTML/CSS/JavaScript 기반으로 구현한다.
+- 특정 프레임워크가 꼭 필요하지 않다면 과도한 라이브러리를 사용하지 않는다.
+- GitHub 저장소에 HTML 파일을 추가하면 해당 파일을 웹에서 사용할 수 있는 구조로 설계한다.
+
+---
+
+# 2. GitHub 저장소 구조
+
+프롬프트는 GitHub 저장소 내부의 폴더 구조를 기준으로 관리한다.
+
+예시:
+
+/prompts
+    /development
+        /backend
+            spring.html
+            api-design.html
+        /frontend
+            javascript.html
+            react.html
+    /writing
+        /blog
+            introduction.html
+            review.html
+        /email
+            business.html
+            casual.html
+
+웹 페이지에서는 이 폴더 구조를 메뉴의 depth로 사용한다.
+
+예를 들어:
+
+개발
+  └─ 백엔드
+      ├─ Spring
+      └─ API 설계
+
+글쓰기
+  └─ 블로그
+      ├─ 자기소개
+      └─ 리뷰
+
+처럼 표시한다.
+
+---
+
+# 3. 폴더명과 한글 메뉴명 분리
+
+GitHub 저장소의 실제 폴더명은 영어로 유지한다.
+
+예:
+
+development
+backend
+writing
+blog
+
+웹 페이지에서 표시되는 이름은 별도의 설정 파일에서 관리한다.
+
+예:
+
+/config/category.json
+
+예시:
+
+{
+  "development": "개발",
+  "backend": "백엔드",
+  "writing": "글쓰기",
+  "blog": "블로그"
+}
+
+이 설정 파일을 수정하면 웹 페이지의 메뉴 이름도 변경되도록 한다.
+
+중요:
+
+- GitHub의 실제 폴더명과 웹에서 표시되는 한글 이름을 분리한다.
+- 설정 파일에 번역명이 존재하지 않는 경우에는 실제 폴더명을 fallback으로 사용한다.
+- 파일명도 필요하다면 동일한 방식으로 한글 표시명을 지정할 수 있도록 확장 가능한 구조로 설계한다.
+
+예:
+
+{
+  "categories": {
+    "development": "개발",
+    "writing": "글쓰기"
+  },
+  "files": {
+    "development/backend/spring.html": "Spring 프롬프트",
+    "writing/blog/review.html": "리뷰 작성 프롬프트"
+  }
+}
+
+단, 초기 구현에서는 폴더명 번역 기능을 우선 구현한다.
+
+---
+
+# 4. 왼쪽 사이드 메뉴
+
+전체 화면은 다음과 같은 구조를 가진다.
+
++------------------------------------------------+
+| Header                                         |
++----------------+-------------------------------+
+|                |                               |
+| Sidebar        | Main Content                  |
+|                |                               |
+| 개발           |                               |
+|   백엔드       |                               |
+|   프론트엔드   |                               |
+| 글쓰기         |                               |
+|   블로그       |                               |
+|   이메일       |                               |
+|                |                               |
++----------------+-------------------------------+
+
+왼쪽에 사이드바를 배치한다.
+
+사이드바에는 최대 2 depth의 카테고리가 표시된다.
+
+예:
+
+개발
+  백엔드
+  프론트엔드
+
+글쓰기
+  블로그
+  이메일
+
+요구사항:
+
+- 1 depth 클릭 가능
+- 2 depth 클릭 가능
+- 클릭하면 해당 폴더에 포함된 HTML 프롬프트 목록을 표시
+- 현재 선택된 메뉴를 시각적으로 구분
+- 하위 메뉴가 없는 경우에도 정상적으로 표시
+- 모바일/작은 화면에서는 사이드바를 접을 수 있도록 한다.
+
+---
+
+# 5. GitHub 폴더 구조 자동 인식
+
+웹 애플리케이션이 특정 프롬프트 파일을 하드코딩하지 않도록 한다.
+
+GitHub 저장소의 파일 구조를 읽어 다음 정보를 동적으로 구성한다.
+
+- 폴더
+- 하위 폴더
+- HTML 파일
+
+GitHub Pages에서 실행될 경우 현재 저장소의 구조를 기준으로 동작하도록 설계한다.
+
+가능하면 GitHub Contents API를 이용하여 repository의 파일 구조를 읽는다.
+
+단, API 호출 없이도 동작할 수 있는 대체 구조를 고려한다.
+
+예를 들어 다음과 같은 방식 중 구현 난이도와 안정성을 비교하여 적절한 방식을 선택한다.
+
+1. GitHub Contents API
+2. 빌드 시 파일 목록 생성
+3. 별도의 manifest.json 생성
+
+가장 안정적인 방법을 선택하고 README에 그 이유를 설명한다.
+
+중요:
+
+GitHub Pages의 정적 호스팅에는 서버에서 디렉터리를 탐색하는 기능이 없다는 점을 고려한다.
+
+---
+
+# 6. HTML 프롬프트 파일 구조
+
+각 프롬프트는 HTML 파일로 저장한다.
+
+예:
+
+/prompts/development/backend/spring.html
+
+HTML 파일에는 실제 AI 프롬프트가 들어간다.
+
+프롬프트 내용은 브라우저에서 사람이 읽기 좋은 형태로 표시한다.
+
+HTML 파일의 전체 소스코드가 그대로 노출되는 것이 아니라 실제 프롬프트 콘텐츠를 중심으로 표시한다.
+
+가능하다면 다음과 같은 HTML 구조를 권장한다.
+
+<article class="prompt">
+    <h1>Spring API 설계</h1>
+
+    <section class="prompt-content">
+        ...
+    </section>
+</article>
+
+단, 기존 HTML 파일을 최대한 자유롭게 작성할 수 있어야 하므로 특정 HTML 구조에 지나치게 의존하지 않는다.
+
+---
+
+# 7. 프롬프트 보기 화면
+
+사용자가 메뉴에서 프롬프트를 선택하면 Main Content 영역에 프롬프트를 표시한다.
+
+화면에는 다음 기능이 필요하다.
+
+- 프롬프트 내용 표시
+- 전체 복사 버튼
+- 수정 버튼
+- HTML 다운로드 버튼
+- 원본 보기 버튼
+
+프롬프트는 AI 서비스에 복사하기 쉽게 표시되어야 한다.
+
+텍스트 영역을 클릭하거나 버튼을 이용해서 쉽게 전체 내용을 복사할 수 있도록 한다.
+
+복사 성공 시 간단한 UI 피드백을 표시한다.
+
+예:
+
+"복사되었습니다."
+
+---
+
+# 8. 프롬프트 수정 기능
+
+가장 중요한 기능이다.
+
+사용자가 "수정" 버튼을 누르면 프롬프트 수정 화면으로 전환한다.
+
+수정 화면은 Main Content 영역을 정확히 2개 영역으로 분할한다.
+
+왼쪽:
+
+원본
+
+오른쪽:
+
+수정본
+
+예:
+
++----------------------+----------------------+
+| 원본                 | 수정본                |
+|                      |                      |
+| You are an AI...     | You are an AI...     |
+|                      | You are a helpful... |
+| Please analyze...    | Please analyze...    |
+|                      |                      |
++----------------------+----------------------+
+
+왼쪽 원본은 수정할 수 없다.
+
+오른쪽 수정본은 직접 편집할 수 있어야 한다.
+
+---
+
+# 9. 원본과 수정본 비교
+
+수정본을 편집하면 원본과 수정본의 차이를 실시간으로 비교한다.
+
+변경된 부분은 형광펜처럼 강조한다.
+
+예:
+
+원본:
+
+You are an AI assistant that helps users.
+
+수정본:
+
+You are an AI assistant that helps Korean users.
+
+" Korean"처럼 새롭게 추가된 부분은 형광펜으로 강조한다.
+
+삭제된 부분도 사용자가 쉽게 파악할 수 있어야 한다.
+
+권장 방식:
+
+- 추가된 텍스트: 형광펜 강조
+- 삭제된 텍스트: 취소선 + 별도 강조
+- 변경된 텍스트: 변경 전/후를 시각적으로 구분
+
+Diff 알고리즘은 직접 구현하지 말고 검증된 JavaScript diff 라이브러리를 사용할 수 있다.
+
+단, 라이브러리 의존성이 꼭 필요한지 검토하고 README에 선택 이유를 기록한다.
+
+---
+
+# 10. 수정본 편집 UX
+
+수정본은 textarea만 사용하는 단순한 방식보다는 가능하면 다음 조건을 만족하도록 한다.
+
+- 긴 프롬프트 편집 가능
+- 줄바꿈 유지
+- 스크롤 가능
+- monospace 또는 가독성이 좋은 글꼴 사용
+- Ctrl+Z / Ctrl+Y 사용 가능
+- 실시간 diff 갱신
+- 변경 내용이 즉시 반영
+
+원본과 수정본의 스크롤 위치가 가능하면 동기화되도록 한다.
+
+---
+
+# 11. 수정본을 HTML 파일로 다운로드
+
+사용자가 수정한 결과를 HTML 파일로 다운로드할 수 있어야 한다.
+
+예:
+
+원본:
+
+spring.html
+
+수정 후:
+
+spring.html
+
+또는
+
+spring_modified.html
+
+사용자가 "HTML 다운로드" 버튼을 클릭하면 브라우저에서 HTML 파일이 다운로드된다.
+
+서버에 업로드하지 않는다.
+
+Blob API 등을 사용하여 브라우저에서 직접 파일을 생성한다.
+
+다운로드된 파일은 원본 HTML 파일과 동일한 형식을 유지해야 한다.
+
+즉, 단순히 프롬프트 텍스트만 다운로드하는 것이 아니라 실제 HTML 파일로 다운로드되어야 한다.
+
+---
+
+# 12. GitHub에 수정본 자동 반영
+
+GitHub Pages의 기본 기능만으로 브라우저에서 수정한 파일을 GitHub repository에 직접 저장할 수 있는 것은 아니라는 점을 고려한다.
+
+따라서 초기 버전에서는 다음을 기본 기능으로 한다.
+
+수정
+→ HTML 다운로드
+→ 사용자가 GitHub repository에 업로드/commit
+
+다만 구조적으로 향후 다음 기능을 추가할 수 있도록 설계한다.
+
+"GitHub에 저장" 버튼
+
+사용자가 GitHub OAuth 또는 GitHub Token으로 인증하면 GitHub API를 통해 수정된 HTML을 repository에 commit할 수 있도록 확장 가능한 구조로 만든다.
+
+보안상 Personal Access Token을 소스코드에 하드코딩하지 않는다.
+
+초기 버전에서는 GitHub API 직접 쓰기 기능을 구현하지 않아도 된다.
+
+README에 다음 내용을 설명한다.
+
+- GitHub Pages는 정적 호스팅이다.
+- 브라우저에서 GitHub repository를 수정하려면 GitHub API와 인증이 필요하다.
+- 현재 버전에서는 다운로드 후 GitHub에 업로드하는 방식을 사용한다.
+- 향후 GitHub API 연동이 가능하도록 구조를 분리한다.
+
+---
+
+# 13. 자동 배포
+
+GitHub 저장소에 다음과 같이 HTML 파일을 추가하면:
+
+/prompts/development/backend/new-prompt.html
+
+GitHub Pages에서 다시 배포되었을 때 웹사이트에 자동으로 해당 프롬프트가 나타나야 한다.
+
+가능하면 GitHub Actions를 이용한다.
+
+예:
+
+git push
+   ↓
+GitHub Actions
+   ↓
+정적 사이트 빌드
+   ↓
+GitHub Pages 배포
+   ↓
+새 HTML 파일 표시
+
+사용자가 별도의 서버를 관리할 필요가 없어야 한다.
+
+---
+
+# 14. Manifest 방식 고려
+
+GitHub Pages에서 브라우저가 repository의 폴더 구조를 직접 탐색하는 데 한계가 있을 수 있으므로 다음 구조를 고려한다.
+
+repository:
+
+/prompts
+/config
+    category.json
+/site
+    ...
+
+빌드 시점에 script가 prompts 디렉터리를 탐색하여 다음과 같은 파일을 자동 생성할 수 있다.
+
+manifest.json
+
+예:
+
+{
+  "categories": [
+    {
+      "id": "development",
+      "name": "개발",
+      "children": [
+        {
+          "id": "backend",
+          "name": "백엔드",
+          "files": [
+            {
+              "path": "prompts/development/backend/spring.html",
+              "name": "Spring"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+이 manifest를 웹 애플리케이션이 읽도록 하면 GitHub API에 의존하지 않고도 정적 사이트에서 파일 목록을 관리할 수 있다.
+
+이 방식이 적절하다면 GitHub Actions에서 자동으로 manifest를 생성한다.
+
+---
+
+# 15. HTML 파일 로딩
+
+프롬프트를 선택하면 해당 HTML 파일을 fetch하여 내용을 가져온다.
+
+예:
+
+fetch("prompts/development/backend/spring.html")
+
+단, GitHub Pages의 경로 문제를 고려한다.
+
+repository가:
+
+https://username.github.io/prompt-archive/
+
+처럼 project pages로 배포될 수도 있으므로 절대경로를 하드코딩하지 않는다.
+
+base URL을 자동으로 계산한다.
+
+---
+
+# 16. XSS 및 HTML 보안
+
+프롬프트 HTML을 브라우저에서 직접 렌더링할 경우 HTML 내부의 script 등이 실행될 위험이 있다.
+
+따라서 프롬프트 파일을 표시할 때 보안을 고려한다.
+
+원칙:
+
+- prompt HTML 내부의 script 실행 금지
+- iframe sandbox 사용을 고려
+- HTML을 그대로 innerHTML에 삽입하는 경우 sanitization 적용
+- 외부 script 실행 방지
+- 프롬프트 내용 자체는 텍스트로 안전하게 표시할 수 있어야 한다.
+
+사용자가 직접 관리하는 개인 repository를 기준으로 하되 기본적인 XSS 방어를 구현한다.
+
+---
+
+# 17. 디자인
+
+디자인은 최대한 심플하게 한다.
+
+원하는 분위기:
+
+- GitHub documentation
+- Notion
+- 개발자 도구
+- 문서 관리 사이트
+
+과도한 장식이나 애니메이션은 사용하지 않는다.
+
+색상:
+
+- 흰색 또는 아주 연한 배경
+- 검정/회색 텍스트
+- 파란색 계열의 최소한의 강조색
+
+레이아웃:
+
+Header
+Sidebar
+Main Content
+
+반응형 지원:
+
+Desktop:
+Sidebar + Main Content
+
+Mobile:
+Sidebar 접기/열기
+
+---
+
+# 18. 검색 기능
+
+가능하면 전체 프롬프트를 검색할 수 있는 검색창을 추가한다.
+
+검색 대상:
+
+- 카테고리명
+- 파일명
+- 프롬프트 제목
+- 프롬프트 본문
+
+초기 버전에서는 클라이언트 사이드 검색으로 구현한다.
+
+---
+
+# 19. 즐겨찾기
+
+초기 버전에서 구현 가능하다면 즐겨찾기 기능을 추가한다.
+
+서버 저장은 하지 않고 localStorage를 사용한다.
+
+예:
+
+⭐ Spring API 설계
+
+브라우저별로 저장된다.
+
+단, 핵심 기능보다 우선순위가 낮으므로 프로젝트 복잡도가 증가한다면 후순위로 둔다.
+
+---
+
+# 20. 기술 요구사항
+
+다음 기술을 우선 검토한다.
+
+Frontend:
+
+- HTML
+- CSS
+- JavaScript
+
+필요한 경우:
+
+- Vite
+- diff 라이브러리
+- DOMPurify
+
+Deployment:
+
+- GitHub Pages
+- GitHub Actions
+
+Data:
+
+- JSON
+- HTML
+
+Backend:
+
+- 없음
+
+---
+
+# 21. 프로젝트 구조
+
+다음과 비슷한 구조를 권장한다.
+
+/
+├── index.html
+├── package.json
+├── src/
+│   ├── main.js
+│   ├── styles.css
+│   ├── components/
+│   │   ├── Sidebar.js
+│   │   ├── PromptViewer.js
+│   │   ├── PromptEditor.js
+│   │   └── DiffViewer.js
+│   ├── services/
+│   │   ├── promptLoader.js
+│   │   ├── manifestLoader.js
+│   │   └── downloadService.js
+│   └── utils/
+│       ├── path.js
+│       └── diff.js
+├── config/
+│   └── category.json
+├── prompts/
+│   ├── development/
+│   │   └── backend/
+│   │       └── example.html
+│   └── writing/
+│       └── example.html
+├── scripts/
+│   └── generate-manifest.js
+├── public/
+└── .github/
+    └── workflows/
+        └── deploy.yml
+
+실제 구현 과정에서 더 적절한 구조가 있다면 이유를 설명하고 변경한다.
+
+---
+
+# 22. 구현 우선순위
+
+다음 순서대로 구현한다.
+
+### Phase 1
+
+- 기본 레이아웃
+- Sidebar
+- 2-depth 카테고리
+- category.json
+- prompt HTML 파일 읽기
+- 프롬프트 표시
+- 복사 기능
+
+### Phase 2
+
+- 수정 모드
+- 원본 / 수정본 2분할
+- 실시간 diff
+- 변경사항 강조
+- HTML 다운로드
+
+### Phase 3
+
+- GitHub Pages 배포
+- GitHub Actions
+- manifest 자동 생성
+- GitHub repository의 파일 추가/삭제 반영
+
+### Phase 4
+
+- 검색
+- localStorage 즐겨찾기
+- 모바일 UI 개선
+
+### Phase 5
+
+향후 확장:
+
+- GitHub OAuth
+- GitHub API
+- 수정본 직접 commit
+- commit message 입력
+- GitHub repository branch 선택
+
+---
+
+# 23. 중요한 UX
+
+이 프로젝트에서 가장 중요한 것은 "프롬프트를 빠르게 찾아서 복사하고 수정하는 것"이다.
+
+따라서 사용자가 다음 과정을 최소한의 클릭으로 할 수 있어야 한다.
+
+웹사이트 접속
+→ 카테고리 선택
+→ 프롬프트 선택
+→ 복사
+
+또는
+
+웹사이트 접속
+→ 카테고리 선택
+→ 프롬프트 선택
+→ 수정
+→ 오른쪽에서 수정
+→ HTML 다운로드
+
+이 흐름이 자연스럽도록 UI를 설계한다.
+
+---
+
+# 24. 예제 데이터
+
+프로젝트를 실행했을 때 바로 테스트할 수 있도록 예제 프롬프트를 최소 3개 이상 생성한다.
+
+예:
+
+prompts/
+├── development/
+│   ├── backend/
+│   │   └── spring.html
+│   └── frontend/
+│       └── javascript.html
+└── writing/
+    └── blog/
+        └── article.html
+
+category.json:
+
+{
+  "development": "개발",
+  "backend": "백엔드",
+  "frontend": "프론트엔드",
+  "writing": "글쓰기",
+  "blog": "블로그"
+}
+
+---
+
+# 25. README
+
+README.md를 작성한다.
+
+README에는 다음 내용을 반드시 포함한다.
+
+1. 프로젝트 소개
+2. 프로젝트 구조
+3. 프롬프트 추가 방법
+4. 카테고리 추가 방법
+5. 한글 메뉴명 변경 방법
+6. 로컬 실행 방법
+7. GitHub Pages 배포 방법
+8. GitHub Actions 동작 방식
+9. HTML 다운로드 방식
+10. GitHub에 직접 수정본을 저장하지 않는 이유
+11. 향후 GitHub API 연동 방법
+12. 보안 관련 주의사항
+
+---
+
+# 26. 최종 요구사항
+
+프로젝트를 실제로 실행할 수 있는 완성된 형태로 구현한다.
+
+단순한 UI mockup을 만들지 않는다.
+
+다음 기능을 실제로 동작하도록 구현한다.
+
+- GitHub Pages에서 실행
+- 2-depth 카테고리
+- GitHub 폴더 구조 기반 프롬프트 관리
+- 한글 메뉴명 설정 파일 분리
+- HTML 프롬프트 로딩
+- 프롬프트 표시
+- 프롬프트 전체 복사
+- 프롬프트 수정
+- 원본/수정본 좌우 비교
+- 실시간 변경사항 강조
+- 수정된 HTML 다운로드
+- GitHub Actions 자동 배포
+- 새 HTML 파일 추가 시 자동 반영
+- 기본적인 XSS 방어
+- 반응형 UI
+
+구현을 시작하기 전에 먼저 전체 아키텍처와 파일 구조를 제안하고, 각 기술을 선택한 이유를 간략하게 설명한다.
+
+그 다음 프로젝트를 단계적으로 구현한다.
+
+각 단계가 완료될 때마다 실행 방법과 테스트 방법을 함께 제공한다.
+
+특히 GitHub Pages의 정적 호스팅이라는 제약을 고려하여 서버 기능을 전제로 구현하지 않는다.</section>
+  </article>
+</body>
+</html>
