@@ -1,6 +1,7 @@
 # GitHub Prompt Archive
 
 AI 프롬프트를 체계적으로 보관·탐색·편집·공유하기 위한 **정적 웹 애플리케이션**입니다. 백엔드 서버 없이 GitHub Pages 위에서 동작합니다.
+Amazon Kiro를 사용하여 제작하였으며 프로젝트에 대한 자세한 설명은 아래와 같습니다.
 
 ---
 
@@ -152,67 +153,7 @@ prompts/
 
 ---
 
-## 6. 로컬 실행 방법
-
-**사전 요건**: Node.js(및 npm)가 설치되어 있어야 합니다. 운영체제에 따라 Node.js 실행 파일이 PATH 환경 변수에 등록되어 있어야 하며, Windows/PowerShell에서 `node`/`npm` 명령이 인식되지 않으면 Node.js를 PATH에 추가하거나 새 셸을 열어 다시 시도하세요.
-
-의존성 설치:
-
-```bash
-npm install
-```
-
-개발 서버 실행 (`predev` 스크립트가 먼저 manifest를 재생성한 뒤 Vite 개발 서버를 띄웁니다):
-
-```bash
-npm run dev
-```
-
-프로덕션 빌드 미리보기 (`prebuild`가 manifest를 재생성하고 Vite 빌드 후, 빌드 결과를 로컬에서 서빙):
-
-```bash
-npm run build
-npm run preview
-```
-
-테스트 실행:
-
-```bash
-npm test
-```
-
-> 위 명령은 `package.json`의 scripts와 정확히 일치합니다: `predev`/`prebuild`는 `node scripts/generate-manifest.js`를 선행하고, `dev`=`vite`, `build`=`vite build`, `preview`=`vite preview`, `test`=`vitest run`.
-
----
-
-## 7. GitHub Pages 배포 방법
-
-1. 저장소 설정의 **Settings → Pages**에서 소스를 **GitHub Actions**로 설정합니다.
-2. 기본 브랜치(default branch)에 변경 사항을 push합니다. push가 감지되면 배포 워크플로가 트리거되어 빌드하고 Pages에 배포합니다.
-3. 프로젝트 페이지(`username.github.io/<repo>/`)로 배포되는 경우, 워크플로가 저장소 이름을 기반으로 `VITE_BASE=/<repo>/`를 주입하여 하위 경로에서 리소스가 올바르게 로드되도록 합니다. 사용자 페이지 루트나 로컬에서는 상대 기준(`./`)으로 폴백합니다.
-
-> **기본 브랜치 가정**: 워크플로(`deploy.yml`)는 기본 브랜치가 `main`이라고 가정합니다. 저장소의 기본 브랜치가 `master`(또는 그 외)라면 `deploy.yml`의 `on.push.branches` 값을 실제 기본 브랜치명으로 변경하세요.
-
----
-
-## 8. GitHub Actions 동작 방식
-
-배포 파이프라인은 `.github/workflows/deploy.yml`에 정의되어 있습니다.
-
-- **트리거**: 기본 브랜치(`main`)에 대한 push, 그리고 Actions 탭에서의 수동 실행(`workflow_dispatch`). 기본 브랜치가 아닌 다른 브랜치 push는 트리거되지 않습니다.
-- **단계 순서(고정, 게이팅)**:
-  1. 저장소 체크아웃 → Node.js 20 설정 → `npm ci`로 의존성 설치
-  2. **manifest 재생성** (`node scripts/generate-manifest.js`)
-  3. **Vite 빌드** (`npm run build`, `VITE_BASE=/<repo>/` 주입)
-  4. Pages 환경 구성 → `dist/` 아티팩트 업로드
-  5. **Pages 배포** (`deploy` 잡이 `build` 잡에 `needs`로 의존)
-- **빌드 실패 게이팅**: `deploy` 잡이 `build` 잡 성공에 의존하므로, manifest 재생성이나 빌드가 실패하면 배포 잡은 실행되지 않고 **기존에 배포된 사이트가 그대로 유지**되며 파이프라인은 실패로 종료됩니다.
-- 권한은 `pages: write`, `id-token: write`를 사용하고, 동시 배포 충돌을 막기 위해 `concurrency: group: pages`로 직렬화합니다.
-- 배포가 성공하면 재생성된 manifest 덕분에 새로 추가한 프롬프트가 사이드바 메뉴에 자동 노출됩니다.
-
----
-
-## 9. HTML 다운로드 방식
+## 6. HTML 다운로드 방식
 
 수정본 다운로드는 전적으로 **브라우저(클라이언트)에서만** 수행되며 어떤 외부 서버로도 데이터를 전송하지 않습니다.
 
@@ -226,7 +167,7 @@ npm test
 
 ---
 
-## 10. GitHub에 직접 수정본을 저장하지 않는 이유
+## 7. GitHub에 직접 수정본을 저장하지 않는 이유
 
 초기 전달 범위(Phase 1-3)에서는 수정본을 **다운로드한 뒤 사용자가 수동으로 커밋**하는 방식을 제공합니다. GitHub에 직접 쓰기(write-back)를 기본 제공하지 않는 이유는 다음과 같습니다.
 
@@ -236,18 +177,7 @@ npm test
 
 ---
 
-## 11. 향후 GitHub API 연동 방법
-
-향후 "GitHub에 저장" 기능은 `src/services/writeBackService.js`의 **구조적 확장 지점(hook)** 을 통해 기존 호출부를 바꾸지 않고 추가할 수 있습니다.
-
-- `WriteBackProvider` 인터페이스는 `saveToGitHub(path, content, options)` 메서드 하나로 정의됩니다.
-- 기본 제공 구현(`downloadWriteBackProvider`)은 네트워크·인증 없이 `manual-download` 결과를 반환하는 no-op으로, 현재의 다운로드-수동 커밋 워크플로를 나타냅니다.
-- 미래의 OAuth/토큰 기반 provider는 `setWriteBackProvider(provider)`로 등록하면 활성화됩니다. 호출부는 `getWriteBackProvider()`로 활성 provider를 얻어 사용하므로 변경이 필요 없습니다. `resetWriteBackProvider()`로 기본 provider로 되돌릴 수 있습니다.
-- 어떤 provider든 **인증 정보는 사용자 런타임 인증(인터랙티브 OAuth 또는 메모리에만 보관하는 사용자 입력 토큰)에서 가져와야 하며, 토큰/시크릿을 소스 코드에 절대 하드코딩하지 않습니다.**
-
----
-
-## 12. 보안 유의사항
+## 8. 보안 유의사항
 
 - **HTML 정화(XSS 방어)**: 신뢰할 수 없는 Prompt_File HTML은 `src/services/sanitizer.js`(DOMPurify 래퍼)로 정화한 뒤에만 DOM에 삽입합니다. `script`/`iframe`/`object`/`embed` 태그, `on*` 인라인 이벤트 핸들러, `javascript:`/`data:`/`vbscript:` 위험 URL 스킴을 제거하고 교차 출처 외부 스크립트 로드를 차단합니다. 정화 불가 시 원본을 주입하지 않고 빈/안전한 텍스트로 대체합니다.
 - **안전한 텍스트 표시**: 프롬프트 본문은 `textContent` 기반의 안전한 텍스트 표시로 렌더링하여 `< > & " '` 문자가 리터럴로 보이게 하고, 원본 소스 코드가 실행되지 않도록 합니다.
@@ -256,16 +186,3 @@ npm test
 - **신뢰 저장소 전제**: 본 아카이브는 개인/신뢰 가능한 저장소에서 운영한다고 가정합니다. 공개 기여를 받는 경우 프롬프트 파일 콘텐츠를 리뷰하는 절차를 권장합니다.
 - **CSP 권장(선택)**: 가능하면 `index.html`에 보수적인 CSP 메타 태그를 추가하여 인라인/외부 스크립트 실행을 추가로 제한할 수 있습니다.
 
----
-
-## 부록 — 설계 근거: 폴더 자동 탐색 방식 비교 (채택: manifest.json)
-
-정적 호스팅은 런타임에 디렉터리를 나열할 수 없습니다(GitHub Pages는 서버 디렉터리 리스팅을 제공하지 않습니다). 폴더 구조를 메뉴로 바꾸는 세 가지 후보를 비교하고 `manifest.json`을 채택한 근거는 다음과 같습니다.
-
-| 방식 | 장점 | 단점 |
-| --- | --- | --- |
-| **GitHub Contents API** (런타임에 REST API로 폴더 조회) | 저장소 상태를 실시간 반영 | 비인증 API rate limit(시간당 60요청), 토큰 필요 가능, 외부 네트워크 의존·지연, 사설 저장소 조회 제약 → "백엔드 없는 순수 정적" 원칙과 상충 |
-| **빌드 타임 파일 목록**(목록을 소스/번들에 직접 주입) | 추가 요청 없음, 단순 | 데이터가 코드에 섞여 "목록 하드코딩 금지" 위반, 데이터 변경 시 코드 재빌드 필요 |
-| **manifest.json (채택)** | 추가 요청 **1회**로 전체 트리 획득, 데이터/코드 분리, 재빌드 없이 데이터만 교체 가능, rate limit·외부 의존 없음 | 빌드 단계가 필요(이미 Vite 빌드가 있어 비용 미미) |
-
-**채택 근거 요약**: Contents API는 rate limit·토큰·외부 네트워크 의존을 유발해 정적·의존 최소화 원칙과 충돌하고, 빌드 타임 코드 주입은 데이터를 코드에 섞어 목록 하드코딩 금지를 위반합니다. `manifest.json`은 기존 Vite 빌드 파이프라인에 생성 단계만 추가하면 되고, 데이터와 코드를 분리하며, **1회 fetch로 전체 Category_Tree**를 얻을 수 있어 정적 호스팅의 디렉터리 리스팅 부재 문제를 가장 깔끔하게 해결합니다.
