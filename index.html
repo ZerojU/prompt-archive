@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Conservative CSP meta (design-recommended, not a hard requirement).
+      Restricts script execution to same-origin and blocks object/embed, adding
+      a layer of defense in addition to runtime HTML sanitization (R12).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-src 'none'"
+    />
+    <title>GitHub Prompt Archive</title>
+  </head>
+  <body>
+    <!-- App layout skeleton: Header (top) / Sidebar (left) / Main (right). -->
+    <div id="app" class="app-layout">
+      <header id="app-header" class="app-header">
+        <h1 class="app-title">GitHub Prompt Archive</h1>
+      </header>
+
+      <div class="app-body">
+        <aside id="sidebar" class="app-sidebar" aria-label="카테고리 네비게이션">
+          <!-- Sidebar is rendered at runtime from manifest.json (Task 10 / 15). -->
+        </aside>
+
+        <main id="main" class="app-main" aria-label="프롬프트 보기">
+          <!-- PromptViewer / PromptEditor render here at runtime (Task 11-15). -->
+        </main>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

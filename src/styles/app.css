@@ -1,0 +1,641 @@
+/*
+ * app.css — Task 16.1 (스타일 및 반응형 레이아웃).
+ *
+ * Provides the Header / Sidebar / Main three-region layout, a light theme with
+ * dark body text and a minimal blue accent, and a 768px responsive breakpoint.
+ * It also styles the runtime component classes (Sidebar, PromptViewer,
+ * PromptEditor, DiffViewer) so the app renders cleanly once wired (Task 15).
+ *
+ * Behavior → Requirements (R13.x):
+ *   - R13.1: Header at the top, Sidebar on the left, Main on the right.
+ *   - R13.2: Light background, dark gray/black body text; blue accent used
+ *            ONLY for links and the active/selected state.
+ *   - R13.3: No auto-playing animations or decorative graphics; state
+ *            transitions are capped at 150ms (well under the 300ms limit).
+ *   - R13.4: At viewport width >= 768px, Sidebar and Main sit side by side.
+ *   - R13.5: At viewport width < 768px, they stack vertically, each 100% wide.
+ *   - R13.6: Crossing the 768px breakpoint introduces no horizontal scrolling
+ *            (box-sizing: border-box everywhere, min-width:0 on flex children,
+ *            no fixed widths that overflow, overflow-x hidden on the body).
+ *
+ * Design reference: design.md "Project Directory Structure" (styles/app.css —
+ * "Header/Sidebar/Main, 768px 반응형 (R13)").
+ */
+
+/* ------------------------------------------------------------------------- *
+ * Design tokens (R13.2). Light surfaces, dark text, a single blue accent.    *
+ * ------------------------------------------------------------------------- */
+:root {
+  --bg: #ffffff;
+  --surface: #f7f8fa;
+  --surface-raised: #ffffff;
+  --border: #e2e5e9;
+  --text: #1f2328;
+  --muted: #6b7280;
+  --accent: #1a66d9;
+  --accent-contrast: #ffffff;
+  --accent-soft: #e8f0fe;
+
+  /* Diff highlight colors — kept subtle, not decorative. */
+  --diff-added-bg: #e6ffed;
+  --diff-added-text: #0a5c2b;
+  --diff-removed-bg: #ffeef0;
+  --diff-removed-text: #86181d;
+
+  --feedback-error: #b4232a;
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
+  --radius: 6px;
+  --sidebar-width: 280px;
+  --header-height: 56px;
+
+  /* R13.3: keep any state transition well under 300ms. */
+  --transition: 150ms ease;
+
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier,
+    monospace;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Base / reset. box-sizing + no horizontal overflow (R13.6).                 *
+ * ------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.6;
+  /* R13.6: never let the layout push a horizontal scrollbar at the breakpoint. */
+  overflow-x: hidden;
+}
+
+a {
+  /* R13.2: blue accent reserved for links. */
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover,
+a:focus {
+  text-decoration: underline;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------------- *
+ * App shell: Header (top) / Sidebar (left) / Main (right) — R13.1.           *
+ * Matches the ids/classes in index.html:                                     *
+ *   .app-layout > .app-header + .app-body ( .app-sidebar + .app-main ).      *
+ * ------------------------------------------------------------------------- */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.app-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  min-height: var(--header-height);
+  padding: 0 var(--space-xl);
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The body holds Sidebar + Main. Flex row at >= 768px (see media query). */
+.app-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column; /* mobile-first: stacked by default (R13.5). */
+  width: 100%;
+  min-width: 0;
+}
+
+.app-sidebar {
+  flex: 0 0 auto;
+  width: 100%; /* full width when stacked (R13.5). */
+  min-width: 0;
+  padding: var(--space-md);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.app-main {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0; /* R13.6: allow shrink, prevent overflow from long content. */
+  padding: var(--space-lg) var(--space-xl);
+  overflow-x: hidden;
+}
+
+/* R13.4: at >= 768px place Sidebar and Main side by side. */
+@media (min-width: 768px) {
+  .app-body {
+    flex-direction: row;
+  }
+
+  .app-sidebar {
+    width: var(--sidebar-width);
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+    /* Keep the sidebar visible while main scrolls. */
+    align-self: stretch;
+    overflow-y: auto;
+  }
+}
+
+/* ------------------------------------------------------------------------- *
+ * Sidebar component (src/components/Sidebar.js).                             *
+ * ------------------------------------------------------------------------- */
+.sidebar {
+  width: 100%;
+}
+
+.sidebar-tree,
+.sidebar-children,
+.sidebar-prompts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* 2-depth indentation. */
+.sidebar-children {
+  padding-left: var(--space-md);
+}
+
+.sidebar-category.depth-2 {
+  margin-left: var(--space-xs);
+}
+
+.sidebar-category-btn,
+.sidebar-prompt-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition);
+}
+
+.sidebar-category-btn {
+  font-weight: 600;
+}
+
+.sidebar-prompt-btn {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.sidebar-category-btn:hover,
+.sidebar-prompt-btn:hover {
+  background: var(--accent-soft);
+}
+
+/* Expand/collapse affordance: a small triangle that rotates when expanded. */
+.sidebar-category-btn[aria-expanded]::before {
+  content: "\25B8"; /* ▸ */
+  display: inline-block;
+  margin-right: var(--space-sm);
+  color: var(--muted);
+  transition: transform var(--transition);
+}
+
+.sidebar-category-btn[aria-expanded="true"]::before,
+.sidebar-category-btn.is-expanded::before {
+  transform: rotate(90deg);
+}
+
+/* R13.2: active/selected state uses the blue accent — nothing else does. */
+.sidebar-category-btn.is-selected,
+.sidebar-prompt-btn.is-selected {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.sidebar-prompt-region {
+  padding-left: var(--space-md);
+}
+
+.sidebar-empty {
+  margin: var(--space-xs) 0 var(--space-sm);
+  padding-left: var(--space-md);
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+/* ------------------------------------------------------------------------- *
+ * PromptViewer component (src/components/PromptViewer.js).                    *
+ * ------------------------------------------------------------------------- */
+.prompt-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+
+.prompt-action {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color var(--transition), border-color var(--transition);
+}
+
+.prompt-action:hover {
+  background: var(--surface);
+  border-color: var(--muted);
+}
+
+.prompt-action:active {
+  background: var(--accent-soft);
+}
+
+/* Copy_Feedback (R6.3/R6.4). Muted by default; red when it is an error. */
+.prompt-feedback {
+  min-height: 1.2em;
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.prompt-feedback.is-error {
+  color: var(--feedback-error);
+}
+
+.prompt-loading {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.prompt-error {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--feedback-error);
+  border-radius: var(--radius);
+  background: var(--diff-removed-bg);
+  color: var(--feedback-error);
+}
+
+.prompt-content {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  /*
+   * Prompt bodies are stored as plain text with LITERAL newlines inside
+   * <section class="prompt-content">. Without this, the browser's default
+   * white-space:normal collapses those newlines to single spaces and the
+   * multi-line prompt renders as one run-on paragraph. pre-wrap preserves the
+   * line breaks while STILL wrapping long lines. It only affects whitespace
+   * rendering, so HTML-structured prompts (headings/lists) still render
+   * normally.
+   */
+  white-space: pre-wrap;
+}
+
+.prompt-content img {
+  max-width: 100%;
+  height: auto;
+}
+
+.prompt-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* 원본 보기 (raw source) — monospace preformatted block (R7.3). */
+.prompt-raw {
+  margin: 0;
+  padding: var(--space-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: auto;
+}
+
+/* ------------------------------------------------------------------------- *
+ * PromptEditor component (src/components/PromptEditor.js) — 2-pane layout.    *
+ * ------------------------------------------------------------------------- */
+.prompt-editor {
+  display: flex;
+  flex-direction: column; /* stacked on narrow screens. */
+  gap: var(--space-md);
+  width: 100%;
+  min-width: 0;
+}
+
+/* Each pane is a column: a caption label above the textarea. The panes are the
+ * flex children laid out 1:1 side by side at >= 768px. */
+.editor-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+/* Small, muted caption above each textarea ("원본" / "수정본"). */
+.editor-pane-label {
+  margin-bottom: var(--space-xs);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.editor-original,
+.editor-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 480px;
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-family: var(--font-mono); /* R8.5: monospace. */
+  font-size: 0.9rem;
+  line-height: 1.5;
+  resize: vertical;
+  overflow-y: auto; /* R8.5: vertical scroll for long prompts. */
+  white-space: pre; /* preserve line breaks; horizontal scroll within pane. */
+}
+
+.editor-original {
+  background: var(--surface);
+  color: var(--muted);
+}
+
+/* R8.1: the two panes sit side by side on wider screens. */
+@media (min-width: 768px) {
+  .prompt-editor {
+    flex-direction: row;
+  }
+}
+
+/* ------------------------------------------------------------------------- *
+ * Edit_Mode shell (src/main.js enterEditMode).                               *
+ *                                                                            *
+ * The Edit_Mode DOM is                                                       *
+ *   .edit-mode > .edit-toolbar(.edit-action-close + .edit-action-download    *
+ *     + .edit-action-preview) + .edit-error +                                *
+ *     .edit-body(.edit-editor-host + .edit-preview-host[hidden]).            *
+ * The editor view is the default 1:1 split (the .prompt-editor component does *
+ * the 1:1 layout itself); a toolbar toggle swaps the whole editor area for a  *
+ * full-screen, vertically scrollable diff preview and back, with the editor   *
+ * kept mounted (hidden) so its value is preserved. The toolbar mirrors        *
+ * .prompt-actions and the .edit-action buttons mirror .prompt-action          *
+ * (R13.2/R13.3). Transitions stay well under the 300ms limit and nothing      *
+ * auto-animates.                                                             *
+ * ------------------------------------------------------------------------- */
+
+/* Safeguard: a host toggled off with the `hidden` attribute must stay hidden
+ * even though .edit-body children otherwise get display:flex below. */
+.edit-body > [hidden] {
+  display: none !important;
+}
+.edit-mode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Toolbar: a flex row of actions, like .prompt-actions. */
+.edit-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Base button — matches .prompt-action (padding/border/radius/bg/hover/active). */
+.edit-action {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color var(--transition), border-color var(--transition);
+}
+
+.edit-action:hover {
+  background: var(--surface);
+  border-color: var(--muted);
+}
+
+.edit-action:active {
+  background: var(--accent-soft);
+}
+
+/* Primary action (다운로드): the single accent-filled button (R13.2). */
+.edit-action-download {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.edit-action-download:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  /* subtle feedback without introducing a new hue */
+  filter: brightness(0.95);
+}
+
+.edit-action-download:active {
+  filter: brightness(0.9);
+}
+
+/* Secondary action (뷰어로/닫기): the plain surface button (default). */
+.edit-action-close {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+/* Preview toggle (변경 결과 미리보기 / 편집으로 돌아가기): a secondary toggle button,
+ * like the viewer's 원본/렌더링 toggle. Reflects its pressed state subtly. */
+.edit-action-preview {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.edit-action-preview[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+/* Error region — styled like .prompt-error. */
+.edit-error {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--feedback-error);
+  border-radius: var(--radius);
+  background: var(--diff-removed-bg);
+  color: var(--feedback-error);
+}
+
+/* Body: shows EITHER the editor host OR the preview host (toggle), never both.
+ * Each host fills the body; the hidden one is removed via the safeguard above. */
+.edit-body {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
+.edit-editor-host {
+  display: flex;
+  min-width: 0; /* R13.6: allow flex children to shrink, prevent overflow. */
+  width: 100%;
+}
+
+/* The editor host wraps the .prompt-editor component, which does its own 1:1
+ * split at >= 768px; just let it fill the width. */
+.edit-editor-host > .prompt-editor {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+/* The preview host holds the full-width diff. It is vertically scrollable so
+ * long prompts scroll like the editor panes, while keeping the green/
+ * strikethrough change highlighting intact. */
+.edit-preview-host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.edit-preview-host .diff-view {
+  margin-top: 0;
+}
+
+.edit-preview-host .diff-region {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ------------------------------------------------------------------------- *
+ * DiffViewer component (src/components/DiffViewer.js).                        *
+ * ------------------------------------------------------------------------- */
+.diff-view {
+  margin-top: var(--space-md);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.diff-region {
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.diff-segments {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* R9.4: added text — distinct background highlight. */
+.diff-added {
+  background: var(--diff-added-bg);
+  color: var(--diff-added-text);
+  text-decoration: none;
+}
+
+/* R9.5: removed text — distinct background + strikethrough. */
+.diff-removed {
+  background: var(--diff-removed-bg);
+  color: var(--diff-removed-text);
+  text-decoration: line-through;
+}
+
+/* Unchanged text — no highlight. */
+.diff-unchanged {
+  color: var(--text);
+}
+
+/* R9.3: no-change indicator — muted. */
+.diff-nochange {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.diff-error {
+  margin-bottom: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--feedback-error);
+  border-radius: var(--radius);
+  background: var(--diff-removed-bg);
+  color: var(--feedback-error);
+}
+
+/* ------------------------------------------------------------------------- *
+ * Reduced-motion: honor the user preference by disabling the few transitions.*
+ * (No auto-playing animations exist, per R13.3.)                             *
+ * ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0ms !important;
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "github-prompt-archive",
+  "version": "0.1.0",
+  "description": "AI 프롬프트를 체계적으로 보관·탐색·편집·공유하기 위한 정적 웹 애플리케이션",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "predev": "node scripts/generate-manifest.js",
+    "dev": "vite",
+    "prebuild": "node scripts/generate-manifest.js",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "diff": "^7.0.0",
+    "dompurify": "^3.2.4"
+  },
+  "devDependencies": {
+    "fast-check": "^3.23.2",
+    "jsdom": "^25.0.1",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  }
+}

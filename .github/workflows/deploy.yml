@@ -1,0 +1,103 @@
+# GitHub Actions deploy workflow for GitHub Prompt Archive.
+#
+# This workflow builds the static site and publishes it to GitHub Pages.
+# It implements the Deploy_Pipeline described in design.md
+# ("Deployment Architecture", "deploy.yml 설계 요점") and Requirement 11.
+#
+# Pipeline order (gated): manifest regeneration -> Vite build -> Pages deploy.
+# Because the deploy job `needs` the build job, a failed build NEVER deploys and
+# the previously published site stays as-is (R11.4). On success the newly built
+# site (with the regenerated manifest) is published, so newly added prompts show
+# up in the sidebar automatically (R11.5).
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    # R11.1 / R11.2: deploy ONLY on pushes to the default branch. Pushes to any
+    # other branch do NOT match this trigger, so they never deploy.
+    # ASSUMPTION: the repository's default branch is `main`. If this repo's
+    # default branch is `master` (or anything else), change `main` below to match.
+    branches: [main]
+  # Allow running the pipeline manually from the Actions tab.
+  workflow_dispatch:
+
+# Standard GitHub Pages permissions required by the deploy-pages action.
+# `pages: write` + `id-token: write` enable OIDC-based deployment to Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Serialize Pages deployments so overlapping runs don't clobber each other.
+# In-progress runs are allowed to finish (no cancel) to avoid half-published state.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Build job: runs steps IN ORDER. Any step failing fails the whole job, which
+  # in turn gates the deploy job below (R11.3, R11.4).
+  # ---------------------------------------------------------------------------
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Check out the repository (including prompts/** and config/**).
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Set up Node.js 20 LTS with npm dependency caching.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # 3. Install dependencies from the lockfile (reproducible install).
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. Regenerate the manifest from /prompts (R11.3 step ①).
+      #    `npm run build` also runs this via the `prebuild` script, but the
+      #    step is made explicit/visible here per the design's fixed step order
+      #    (manifest regeneration -> Vite build -> Pages deploy). Running it
+      #    twice is harmless and idempotent.
+      - name: Regenerate manifest
+        run: node scripts/generate-manifest.js
+
+      # 5. Build with Vite (R11.3 step ②). The project-pages base is injected via
+      #    VITE_BASE, which vite.config.js reads (falling back to './' locally).
+      #    For a PROJECT page served at `username.github.io/<repo>/`, the base
+      #    must be `/<repo>/`. We derive `<repo>` from the repository name so the
+      #    workflow is portable across repos without hardcoding the repo name.
+      - name: Build with Vite
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+        run: npm run build
+
+      # 6. Configure the GitHub Pages environment for this run.
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      # 7. Upload the built `dist/` directory as the Pages artifact.
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  # ---------------------------------------------------------------------------
+  # Deploy job: depends on `build`. If `build` fails, this job is skipped, so no
+  # deployment happens and the existing live site is left untouched (R11.4).
+  # On a successful build, the new site is published to Pages (R11.3, R11.5).
+  # ---------------------------------------------------------------------------
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

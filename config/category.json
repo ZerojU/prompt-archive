@@ -1,0 +1,13 @@
+{
+  "folders": {
+    "backend": "백엔드",
+    "backend/database": "데이터베이스",
+    "frontend": "프런트엔드",
+    "portfolio": "포트폴리오",
+    "daily": "일반",
+    "etc": "기타"
+  },
+  "files": {
+    "backend/spring.html": "스프링 부트 API 리뷰"
+  }
+}
