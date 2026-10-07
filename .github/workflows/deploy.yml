@@ -79,6 +79,8 @@ jobs:
       # 6. Configure the GitHub Pages environment for this run.
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       # 7. Upload the built `dist/` directory as the Pages artifact.
       - name: Upload Pages artifact
